@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>EUROSIA Insight (Gemini)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+body {
+    margin: 0;
+    font-family: 'Inter', Arial, sans-serif;
+    background: #eef2f7;
+    color: #333;
+    line-height: 1.6;
+}
+header {
+    background: #1a237e; /* Deep Indigo */
+    color: white;
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+header h1 { margin: 0; font-size: 1.8rem; }
+nav a {
+    color: white;
+    margin-left: 25px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.3s;
+}
+nav a:hover {
+    color: #9fa8da; /* Light Indigo */
+}
+main {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 0 15px;
+}
+section {
+    margin-bottom: 40px;
+    padding: 30px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+}
+section h2 {
+    color: #1a237e;
+    border-bottom: 2px solid #eef2f7;
+    padding-bottom: 10px;
+    margin-top: 0;
+    font-size: 1.5rem;
+}
+
+/* KPI Cards Styling */
+.kpi-cards {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: space-around;
+}
+.kpi-card {
+    flex: 1;
+    min-width: 250px;
+    padding: 20px;
+    background: #f0f4f8;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #3949ab;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+}
+
+/* Chatbox Styling */
+#chatbox-section {
+    display: flex;
+    flex-direction: column;
+}
+.chat-window {
+    height: 400px;
+    overflow-y: auto;
+    border: 1px solid #c5cbe3;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    background: #fff;
+    flex-grow: 1;
+}
+.chat-window div {
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 6px;
+    word-wrap: break-word;
+}
+.chat-window div b {
+    color: #1a237e;
+}
+.chat-input {
+    display: flex;
+    gap: 10px;
+}
+.chat-input input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #c5cbe3;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+.chat-input button {
+    padding: 10px 20px;
+    background: #42a5f5; /* Light Blue for action */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+.chat-input button:hover {
+    background: #1e88e5;
+}
+.citation-link {
+    font-size: 0.75rem;
+    color: #1a237e;
+    display: block;
+    margin-top: 5px;
+}
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        text-align: center;
+    }
+    nav {
+        margin-top: 10px;
+    }
+    nav a {
+        margin: 0 10px;
+    }
+    .kpi-cards {
+        flex-direction: column;
+    }
+    .kpi-card {
+        min-width: 100%;
+    }
+}
+    </style>
+</head>
+<body>
+    <header>
+        <h1>EUROSIA Insight <span style="font-size: 0.8em; opacity: 0.7;">(Powered by Gemini)</span></h1>
+        <nav>
+            <a href="#dashboard-section">Dashboard</a>
+            <a href="#kpis-section">KPIs</a>
+            <a href="#chatbox-section">Chat</a>
+        </nav>
+    </header>
+
+    <main>
+        <section id="dashboard-section"></section>
+        <section id="kpis-section"></section>
+        <section id="chatbox-section"></section>
+    </main>
+
+    <script type="text/javascript">
+// Configuration for Gemini API
+const GEMINI_MODEL = "gemini-2.5-flash-preview-05-20";
+const API_KEY = "AIzaSyCrsygGUoxlHEFmNTGSRejD-9R9U_t2xnA"; // Canvas environment provides this automatically
+const API_URL = https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${API_KEY};
+const MAX_RETRIES = 3;
+
+/**
+ * Executes a fetch request with exponential backoff for reliability.
+ * @param {string} url The API endpoint URL.
+ * @param {object} options The fetch options (method, headers, body).
+ * @param {number} retryCount Current retry attempt.
+ * @returns {Promise<Response>} The successful response object.
+ */
+async function fetchWithBackoff(url, options, retryCount = 0) {
+    try {
+        const response = await fetch(url, options);
+        if (response.status === 429 && retryCount < MAX_RETRIES) {
+            const delay = Math.pow(2, retryCount) * 1000;
+            console.warn(Rate limit hit. Retrying in ${delay / 1000}s...);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return fetchWithBackoff(url, options, retryCount + 1);
+        }
+        if (!response.ok) {
+            throw new Error(HTTP error! status: ${response.status});
+        }
+        return response;
+    } catch (error) {
+        if (retryCount < MAX_RETRIES) {
+            const delay = Math.pow(2, retryCount) * 1000;
+            console.error(Fetch failed. Retrying in ${delay / 1000}s...);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return fetchWithBackoff(url, options, retryCount + 1);
+        }
+        throw error;
+    }
+}
+
+
+// Function to send the user message to the Gemini API
+async function sendMessage() {
+    const input = document.getElementById("chatMessage");
+    const message = input.value.trim();
+    if (!message) return;
+
+    const chatWindow = document.getElementById("chatWindow");
+    
+    // Display user message
+    chatWindow.innerHTML += <div style="text-align: right; background-color: #e3f2fd; border: 1px solid #bbdefb;"><b>You:</b> ${message}</div>;
+    input.value = ""; // Clear input immediately
+    chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to bottom
+
+    // Display a thinking message from the bot
+    const botThinkingDiv = document.createElement('div');
+    botThinkingDiv.id = 'thinking-indicator';
+    botThinkingDiv.innerHTML = '<div><b>Bot:</b> Analyzing data and generating insights...</div>';
+    botThinkingDiv.style.backgroundColor = '#f1f8e9';
+    botThinkingDiv.style.border = '1px solid #dcedc8';
+    chatWindow.appendChild(botThinkingDiv);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+
+    try {
+        const systemPrompt = "You are EUROSIA Insight, a professional, concise, and helpful AI business analyst. Provide actionable insights with clear reasoning, referencing external data if necessary. Format your response using Markdown (e.g., bullet points).";
+
+        const payload = {
+            contents: [{ parts: [{ text: message }] }],
+            // Use Google Search for grounding to ensure up-to-date business data
+            tools: [{ "google_search": {} }],
+            systemInstruction: {
+                parts: [{ text: systemPrompt }]
+            },
+        };
+
+        const options = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        };
+
+        const response = await fetchWithBackoff(API_URL, options);
+        const result = await response.json();
+        
+        // Remove thinking indicator
+        document.getElementById('thinking-indicator')?.remove();
+
+        const candidate = result.candidates?.[0];
+        let botAnswer = "Sorry, I received an empty or malformed response from the AI.";
+        let sourcesHtml = '';
+
+        if (candidate && candidate.content?.parts?.[0]?.text) {
+            botAnswer = candidate.content.parts[0].text;
+
+            // Extract and format citations (sources)
+            const groundingMetadata = candidate.groundingMetadata;
+            if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                const sources = groundingMetadata.groundingAttributions
+                    .map((attribution, index) => ({
+                        uri: attribution.web?.uri,
+                        title: attribution.web?.title,
+                        index: index + 1
+                    }))
+                    .filter(source => source.uri && source.title);
+                
+                if (sources.length > 0) {
+                    sourcesHtml = '<div style="margin-top: 10px; font-size: 0.8rem; color: #555;">';
+                    sourcesHtml += '<strong>Sources:</strong>';
+                    sources.forEach(source => {
+                        sourcesHtml += `
+                            <a href="${source.uri}" target="_blank" class="citation-link" title="${source.title}">
+                                [${source.index}] ${source.title.substring(0, 70)}...
+                            </a>
+                        `;
+                    });
+                    sourcesHtml += '</div>';
+                }
+            }
+        }
+        
+        // Display bot response
+        chatWindow.innerHTML += <div style="background-color: #f9f9f9; border: 1px solid #ddd;"><b>Bot:</b> ${botAnswer}${sourcesHtml}</div>;
+        
+    } catch (error) {
+        console.error("❌ Gemini API Call Error:", error);
+        
+        // Remove thinking indicator if it failed during the call
+        document.getElementById('thinking-indicator')?.remove();
+
+        chatWindow.innerHTML += <div style="color: red; background-color: #ffebee; border: 1px solid #ef9a9a;"><b>Bot Error:</b> Failed to get a response from the Gemini API. Check console for details.</div>;
+    }
+
+    // Scroll to bottom after response
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+/* --- Dashboard and KPI functions remain unchanged --- */
+
+// Renders the Chart.js visualization
+function renderCharts() {
+    const salesChartCanvas = document.getElementById("salesChart");
+    if (!salesChartCanvas) return;
+
+    const ctx = salesChartCanvas.getContext("2d");
+    new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: ["Jan", "Feb", "Mar", "Apr", "May"],
+            datasets: [{
+                label: "Sales (in thousands USD)",
+                data: [120, 190, 300, 250, 200],
+                backgroundColor: "#42a5f5", 
+                borderColor: "#1e88e5",
+                borderWidth: 1,
+                borderRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true
+                }
+            }
+        }
+    });
+}
+
+// Renders the KPI widgets
+function loadKpis() {
+    const kpis = document.getElementById("kpis-section");
+    kpis.innerHTML = `
+        <h2>Key Performance Indicators (YTD)</h2>
+        <div class="kpi-cards">
+            <div class="kpi-card">Revenue: $120K</div>
+            <div class="kpi-card">Expenses: $80K</div>
+            <div class="kpi-card">Profit: $40K</div>
+        </div>
+    `;
+}
+
+// Initializes the chat interface and handles user interaction
+function initChatbox() {
+    const chat = document.getElementById("chatbox-section");
+    chat.innerHTML = `
+        <h2>Ask EUROSIA Insight</h2>
+        <div class="chat-window" id="chatWindow"></div>
+        <div class="chat-input">
+            <input type="text" id="chatMessage" placeholder="Ask a business question (e.g., 'Latest trends in renewable energy')"/>
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    `;
+
+    document.getElementById("chatMessage").addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault(); 
+            sendMessage();
+        }
+    });
+    // Add an initial welcome message
+    document.getElementById("chatWindow").innerHTML = <div style="background-color: #f9f9f9; border: 1px solid #ddd;"><b>Bot:</b> Hello! I'm EUROSIA Insight. I can provide real-time business analysis powered by the Gemini API.</div>;
+}
+
+// Renders the main dashboard section with a chart
+function loadDashboard() {
+    const dashboard = document.getElementById("dashboard-section");
+    dashboard.innerHTML = `
+        <h2>Business Dashboard - Sales Performance</h2>
+        <canvas id="salesChart"></canvas>
+    `;
+    renderCharts();
+}
+
+// Main entry point for the frontend application
+document.addEventListener("DOMContentLoaded", () => {
+    loadDashboard();
+    loadKpis();
+    initChatbox();
+});
+    </script>
+</body>
+</html>
